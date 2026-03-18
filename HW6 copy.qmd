@@ -1,0 +1,185 @@
+---
+title: "HW #6"
+author: "Rob Vagnini"
+date: "today"
+editor: visual
+format:
+  html:
+    embed-resources: true
+execute:
+  echo: true
+  message: false
+  warning: false
+---
+
+```{r setup}
+library(tidyverse)
+library(tidytext)
+library(schrute)
+```
+
+# The Office
+
+Let's continue to work with *The Office* text from the [schrute](https://cran.r-project.org/web/packages/schrute/index.html) package.
+
+# Sentiment Analysis
+
+### Over Time
+
+Calculate the sentiment score (positive - negative) for each episode, and plot this variable over time.
+
+```{r}
+sentscoreTO <- theoffice |> 
+  unnest_tokens(word, text) |> 
+  inner_join(sentiments, by = "word") |> 
+  group_by(season, episode) |> 
+  summarize(pos_score = sum(sentiment == "positive"),
+            neg_score = sum(sentiment == "negative"),
+            sent_score = pos_score - neg_score,
+            .groups = "drop") |> 
+  left_join(theoffice, by  = c("season", "episode")) |> 
+  select(season, episode, sent_score, imdb_rating) |> 
+  distinct() |> 
+  mutate(numep = row_number(),
+         season = as.factor(season))
+
+head(sentscoreTO)
+
+  
+ggplot(sentscoreTO, aes(x = numep, y = sent_score, color = season)) + 
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Episode Number",
+       y = "Sentiment Score",
+       title = "Sentiment Scores Across \"The Office\" Episodes",
+       color = "Season") + 
+  theme(axis.title = element_text(family = "Times New Roman"),
+        axis.text = element_text(family = "Times New Roman"),
+        plot.title = element_text(family = "Times New Roman", hjust = 0.5),
+        legend.text = element_text(family = "Times New Roman"),
+        legend.title = element_text(family = "Times New Roman"))
+```
+
+### By Rating
+
+Create a scatterplot of the `imdb_rating` versus the sentiment score (positive - negative), where the case is again an episode. Decide whether a linear model is a good fit to this relationship (optional, if you have had modeling classes, what model looks best?). Comment on what you find.
+
+```{r}
+ggplot(sentscoreTO, aes(x = imdb_rating, y = sent_score)) +
+  geom_point() + 
+  geom_smooth(method = "lm") +
+  labs(title = "IMDB Rating vs. Sentiment Score",
+       subtitle = "\"The Office\" Episodes",
+       x = "IMDB Rating",
+       y = "Sentiment Score") + 
+  theme(plot.title = element_text(family = "Times New Roman", hjust = 0.5),
+        plot.subtitle = element_text(family = "Times New Roman", face = "italic", hjust = 0.5),
+        axis.text = element_text(family = "Times New Roman"),
+        axis.title = element_text(family = "Times New Roman"))
+```
+
+*In general, we find that as the IMDB rating increases, the sentiment score tends to increase. This relationship is not incredibly strong and there is a possible quadratic relationship (rather than linear).*
+
+### Sentiment Negation
+
+Identify at least a few negations that change the sentiment values based on the text. Use this to recreate the graphs above (or do this first, then create the graphs).
+
+```{r}
+# identifying reversal words
+theoffice |> 
+  unnest_tokens(bigram, text, "ngrams", n=2) |> 
+  separate(bigram,
+           into = c("word1","word2"),
+           sep = "\\s+") |> 
+  inner_join(sentiments, by = c("word2" = "word")) |> 
+  filter(str_starts(word1,"n")) |>
+  count(word1, sort = T) |> 
+  head()
+
+reversal_words <- c("not", "no", "never", "nor", "nothing", "neither")
+```
+
+```{r}
+# identifying instances where reversal takes place
+theoffice |>
+  unnest_tokens(bigram, text, "ngrams", n=2) |>
+  separate(bigram,
+           into=c("word1","word2"),
+           sep = "\\s+") |>
+  inner_join(sentiments |> rename(sentiment0 = sentiment),
+             by = c("word2" = "word")) |>
+  mutate(
+    sentiment = 
+      case_when(
+        (word1 %in% reversal_words) & sentiment0 == "positive" ~ "negative",
+        (word1 %in% reversal_words) & sentiment0 == "negative" ~ "positive",
+        T ~ sentiment0)
+  ) |>
+  filter(sentiment0 != sentiment) |> 
+  select(word1, word2, sentiment0, sentiment) |> 
+  head()
+```
+
+```{r}
+# adjusting dataset to account for reversal words
+sentscoreTOrev <- theoffice |>
+  unnest_tokens(bigram, text, "ngrams", n=2) |>
+  separate(bigram,
+           into=c("word1","word2"),
+           sep = "\\s+") |>
+  inner_join(sentiments |> rename(sentiment0 = sentiment),
+             by = c("word2" = "word")) |>
+  mutate(
+    sentiment = 
+      case_when(
+        (word1 %in% reversal_words) & sentiment0 == "positive" ~ "negative",
+        (word1 %in% reversal_words) & sentiment0 == "negative" ~ "positive",
+        T ~ sentiment0)
+  ) |> 
+  group_by(season, episode) |> 
+  summarize(pos_score = sum(sentiment == "positive"),
+            neg_score = sum(sentiment == "negative"),
+            sent_score = pos_score - neg_score,
+            .groups = "drop") |> 
+  left_join(theoffice, by = c("season", "episode")) |> 
+  select(season, episode, sent_score, imdb_rating) |> 
+  distinct() |> 
+  mutate(numep = row_number(),
+         season = as.factor(season))
+
+sentscoreTOrev |> 
+  head()
+```
+
+```{r}
+# sentiment analysis (over time)
+ggplot(sentscoreTOrev, aes(x = numep, y = sent_score, color = season)) + 
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Episode Number",
+       y = "Sentiment Score",
+       title = "Sentiment Scores Across \"The Office\" Episodes",
+       subtitle = "With Reversal Words Considered",
+       color = "Season") + 
+  theme(axis.title = element_text(family = "Times New Roman"),
+        axis.text = element_text(family = "Times New Roman"),
+        plot.title = element_text(family = "Times New Roman", hjust = 0.5),
+        plot.subtitle = element_text(family = "Times New Roman", hjust = 0.5, face = "italic"),
+        legend.text = element_text(family = "Times New Roman"),
+        legend.title = element_text(family = "Times New Roman"))
+```
+
+```{r}
+# sentiment analysis (by imdb)
+ggplot(sentscoreTOrev, aes(x = imdb_rating, y = sent_score)) +
+  geom_point() + 
+  geom_smooth(method = "lm") +
+  labs(title = "IMDB Rating vs. Sentiment Score",
+       subtitle = "\"The Office\" Episodes with Reversal Words",
+       x = "IMDB Rating",
+       y = "Sentiment Score") + 
+  theme(plot.title = element_text(family = "Times New Roman", hjust = 0.5),
+        plot.subtitle = element_text(family = "Times New Roman", face = "italic", hjust = 0.5),
+        axis.text = element_text(family = "Times New Roman"),
+        axis.title = element_text(family = "Times New Roman"))
+```
