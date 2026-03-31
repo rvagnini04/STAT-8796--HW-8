@@ -28,6 +28,8 @@ Let's continue to work with *The Office* text from the [schrute](https://cran.r-
 
 Calculate the sentiment score (positive - negative) for each episode, and plot this variable over time.
 
+#comment use two code chunk would be better
+
 ```{r}
 sentscoreTO <- theoffice |> 
   unnest_tokens(word, text) |> 
@@ -80,6 +82,8 @@ ggplot(sentscoreTO, aes(x = imdb_rating, y = sent_score)) +
 
 *In general, we find that as the IMDB rating increases, the sentiment score tends to increase. This relationship is not incredibly strong and there is a possible quadratic relationship (rather than linear).*
 
+#comment it is a great idea to add the smooth trend line
+
 ### Sentiment Negation
 
 Identify at least a few negations that change the sentiment values based on the text. Use this to recreate the graphs above (or do this first, then create the graphs).
@@ -95,7 +99,7 @@ theoffice |>
   filter(str_starts(word1,"n")) |>
   count(word1, sort = T) |> 
   head()
-
+# add more reversal word: "hardly", "barely"
 reversal_words <- c("not", "no", "never", "nor", "nothing", "neither")
 ```
 
@@ -183,3 +187,5 @@ ggplot(sentscoreTOrev, aes(x = imdb_rating, y = sent_score)) +
         axis.text = element_text(family = "Times New Roman"),
         axis.title = element_text(family = "Times New Roman"))
 ```
+
+#comment great job!
